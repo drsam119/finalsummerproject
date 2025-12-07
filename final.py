@@ -10,6 +10,7 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.compose import ColumnTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
 from sklearn.metrics import mean_absolute_error, r2_score
 
 
@@ -77,7 +78,7 @@ fig1 = px.bar(
     labels={"value": "Employability (%)", "variable": "Employment Type"},
 )
 
-# Chart 2: Graduate % (kept as pie, but Education scatter will be separate)
+# Chart 2: Graduate % (pie)
 regionforpie = df.groupby("Region")[["Graduate(%)"]].mean().reset_index()
 
 fig2 = px.pie(
@@ -225,7 +226,7 @@ fig7.update_layout(
     margin=dict(l=0, r=0, b=0, t=40),
 )
 
-# NEW: Education Impact Scatter Plot
+# NEW: Education Impact Scatter Plot (with trendline)
 fig_edu_scatter = px.scatter(
     df,
     x="Graduate(%)",
@@ -278,7 +279,7 @@ elif selected_chart == "Age Group Employability":
     st.plotly_chart(fig3, use_container_width=True)
 
 elif selected_chart == "Graduate Employability":
-    # (If you still keep this label somewhere, show fig2 or another chart)
+    # If you still keep this label somewhere, use the pie:
     st.plotly_chart(fig2, use_container_width=True)
 
 elif selected_chart == "Sector-wise Employability":
@@ -317,6 +318,7 @@ has_time_series = len(years) >= 2
 if not has_time_series:
     st.warning("Multiple distinct years are required for forecasting.")
 else:
+    # 1. Global RandomForest model (for overall performance metrics only)
     X = df_long[["State", "Region", "Year", "Sector"]]
     y = df_long["Employment"]
 
@@ -346,9 +348,10 @@ else:
     mae = mean_absolute_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
 
-    st.write(f"Mean Absolute Error: {mae:.2f}")
-    st.write(f"R² Score: {r2:.3f}")
+    st.write(f"Model (Random Forest) - Mean Absolute Error: {mae:.2f}")
+    st.write(f"Model (Random Forest) - R² Score: {r2:.3f}")
 
+    # 2. Forecasting with per-sector Linear Regression on Year
     selected_state = st.selectbox("Select State for Forecast", unique_states)
 
     max_year = max(years)
@@ -361,26 +364,42 @@ else:
 
     region = df_long.loc[df_long["State"] == selected_state, "Region"].mode()[0]
 
-    prev_input = pd.DataFrame(
-        {
-            "State": [selected_state] * len(unique_sectors),
-            "Region": [region] * len(unique_sectors),
-            "Year": [max_year] * len(unique_sectors),
-            "Sector": unique_sectors,
-        }
-    )
+    prev_preds = []
+    fut_preds = []
 
-    future_input = prev_input.copy()
-    future_input["Year"] = future_year
+    for sector in unique_sectors:
+        sub = df_long[
+            (df_long["State"] == selected_state)
+            & (df_long["Sector"] == sector)
+        ].sort_values("Year")
 
-    prev_pred = model.predict(prev_input)
-    fut_pred = model.predict(future_input)
+        if sub["Year"].nunique() >= 2:
+            # Fit linear regression: Year -> Employment
+            X_sec = sub[["Year"]].values
+            y_sec = sub["Employment"].values
+
+            lr = LinearRegression()
+            lr.fit(X_sec, y_sec)
+
+            prev_val = lr.predict([[max_year]])[0]
+            fut_val = lr.predict([[future_year]])[0]
+        else:
+            # Not enough data for trend; keep last known value
+            if not sub.empty:
+                last_val = sub["Employment"].iloc[-1]
+            else:
+                last_val = 0.0
+            prev_val = last_val
+            fut_val = last_val
+
+        prev_preds.append(prev_val)
+        fut_preds.append(fut_val)
 
     res = pd.DataFrame(
         {
             "Sector": unique_sectors,
-            f"Employment_{max_year}": prev_pred,
-            f"Employment_{future_year}": fut_pred,
+            f"Employment_{max_year}": prev_preds,
+            f"Employment_{future_year}": fut_preds,
         }
     )
     res["Growth"] = res[f"Employment_{future_year}"] - res[f"Employment_{max_year}"]
