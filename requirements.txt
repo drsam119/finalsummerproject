@@ -1,18 +1,10 @@
-Required Libraries/Modules 
+streamlit==1.32.0
+pandas==2.2.2
+numpy==1.26.4
+plotly==5.20.0
+scikit-learn==1.4.0
 
-1)Plotly: import plotly.express as px
-          import plotly.graph_objects as go
-
-2)Pandas: import pandas as pd
-
-
-3)Streamlit: import streamlit as st
-
-4)Folium: import folium
-
-5)JSON: import json
-
-Required Files
-
-1) Csv files
-2) Geojson file 
+rich==13.7.1
+pygments==2.17.2
+markdown-it-py==3.0.0
+mdurl==0.1.2
