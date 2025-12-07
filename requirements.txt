@@ -1,0 +1,18 @@
+Required Libraries/Modules 
+
+1)Plotly: import plotly.express as px
+          import plotly.graph_objects as go
+
+2)Pandas: import pandas as pd
+
+
+3)Streamlit: import streamlit as st
+
+4)Folium: import folium
+
+5)JSON: import json
+
+Required Files
+
+1) Csv files
+2) Geojson file 
